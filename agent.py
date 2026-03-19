@@ -474,16 +474,31 @@ When asked to compare (e.g., "ETL vs API error handling"):
 - Read routers/*.py to see API error strategy
 - Compare: Which catches more errors? Which is more robust? Why?
 
+## LISTING AND DESCRIBING MODULES
+
+When asked to "List all X modules" or "What modules does directory Y have?":
+1. Use list_files on the directory (e.g., backend/app/routers/)
+2. Read each .py file's docstring/comments to understand its purpose
+3. Identify the domain it handles from the function names or module docstring
+4. Compile complete list: "Module: domain_handled" (one per line)
+5. Include all relevant modules in the final answer
+
+Example: If asked "List all router modules", answer should be:
+"auth.py: Authentication endpoints
+items.py: Item management endpoints
+..."
+
 ## WORKFLOW SUMMARY
 
 - Questions about "how to" → explore wiki/ for docs
+- Questions about "list modules" → list_files the directory, read each file, describe all
 - Questions about "how many/count" → query_api /items/, /learners/, parse response
 - Questions about bugs → read source code (analytics.py), look for risky patterns
 - Questions about architecture → trace through yaml/docker/code files
 - Questions about frameworks → read main.py and source
 - Questions about errors → query API to see error, then read source to find cause
 
-Output format: Give clear, specific answers. When using tools, mention what you found and from which file/endpoint."""
+Output format: Give clear, specific answers. When listing modules, provide the complete list. When using tools, mention what you found and from which file/endpoint."""
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -492,7 +507,7 @@ Output format: Give clear, specific answers. When using tools, mention what you 
     
     tools = _get_tool_schemas()
     tool_calls_log: list[dict[str, Any]] = []
-    max_iterations = 15  # Increased for complex multi-file analysis questions
+    max_iterations = 20  # Increased for complex multi-file listing and analysis (list_files + multiple read_file calls)
     iteration = 0
     
     while iteration < max_iterations:
