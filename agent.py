@@ -453,11 +453,34 @@ For "Docker journey" or "request lifecycle" questions:
 
 ## BUG DETECTION PATTERNS
 
-When asked "which endpoints can crash?", look for:
-- Division operations → `a / b` without checking if b is 0
-- None comparisons → Sorting/comparing without checking if values are None
-- Missing error handling → Operations that could raise exceptions
-- Array access → Accessing indices without bounds checking
+When asked "which endpoints can crash?" or "find bugs in analytics.py":
+1. Read analytics.py line by line
+2. Look for DIVISION operations: lines with `/` operator (e.g., `sum / count`)
+   - Check if divisor is validated (is it checked for 0?)
+   - If divisor could be 0, this is a risky bug
+3. Look for SORTING/COMPARISON with None-unsafe operations:
+   - Lines with `.sort()`, `max()`, `min()`, comparisons (>, <, ==)
+   - Check if None values are handled with guards (if x is not None)
+   - If None could appear, this is a risky bug
+4. Look for ARRAY/LIST access without bounds checking:
+   - Lines with `[0]`, `[index]`, `.pop()`
+   - Check if array is validated first
+5. Report each specific bug: filename, line number, operation, why it's risky
+
+Examples of problematic code:
+- `result = total / count` (division by zero if count=0)
+- `sorted(values)` (crashes if values contains None)
+- `data[0]` (IndexError if data is empty)
+
+## ANALYTICS.PY SPECIFIC DETECTIVE WORK
+
+If asked about analytics router bugs:
+1. Read backend/app/routers/analytics.py carefully
+2. Find the completion-rate endpoint handler
+3. Look for calculations like: sum/count, percentage calculations
+4. Check if denominator is validated (what if no data?)
+5. Check for sorting operations on user data that might contain None
+6. Report the specific line, code pattern, and why it fails
 
 ## API ERROR MESSAGES
 
@@ -467,12 +490,22 @@ When query_api returns a non-200 status_code:
 - Then read the source code (e.g., analytics.py) to find what caused it
 - You can diagnose bugs by examining what the error tells you
 
-## COMPARISON QUESTIONS
+## COMPARISON QUESTIONS: ETL vs API ERROR HANDLING
 
-When asked to compare (e.g., "ETL vs API error handling"):
-- Read etl.py to understand ETL error strategy
-- Read routers/*.py to see API error strategy
-- Compare: Which catches more errors? Which is more robust? Why?
+When asked to compare ETL pipeline error handling vs API error handling:
+1. READ ETL CODE:
+   - File: backend/app/etl.py
+   - Look for: try/except blocks, error logging, retry logic, failure modes
+   - Record: What errors does ETL catch? How does it handle them? Does it log?
+2. READ API ROUTER CODE:
+   - Files: backend/app/routers/*.py (esp. analytics.py, items.py)
+   - Look for: try/except blocks, validate inputs, return error responses
+   - Record: What errors do routers catch? Do they validate inputs?
+3. COMPARE:
+   - ETL approach: What's the error strategy? (catch-all? specific? retry?)
+   - API approach: What's the error strategy? (validate then respond? catch globally?)
+   - Which is more robust and why?
+   - ETL handles batch failures differently than API single-request failures
 
 ## LISTING AND DESCRIBING MODULES
 
@@ -493,12 +526,13 @@ items.py: Item management endpoints
 - Questions about "how to" → explore wiki/ for docs
 - Questions about "list modules" → list_files the directory, read each file, describe all
 - Questions about "how many/count" → query_api /items/, /learners/, parse response
-- Questions about bugs → read source code (analytics.py), look for risky patterns
+- Questions about bugs → read analytics.py specifically, look for division and None-unsafe operations
+- Questions about ETL vs API → read etl.py first, then routers/, compare error handling strategies
 - Questions about architecture → trace through yaml/docker/code files
 - Questions about frameworks → read main.py and source
 - Questions about errors → query API to see error, then read source to find cause
 
-Output format: Give clear, specific answers. When listing modules, provide the complete list. When using tools, mention what you found and from which file/endpoint."""
+Output format: Give clear, specific answers with line numbers when reporting bugs. When comparing, show both approaches then explain which is better. When listing modules, provide the complete list. When using tools, mention what you found and from which file/endpoint."""
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -507,7 +541,7 @@ Output format: Give clear, specific answers. When listing modules, provide the c
     
     tools = _get_tool_schemas()
     tool_calls_log: list[dict[str, Any]] = []
-    max_iterations = 20  # Increased for complex multi-file listing and analysis (list_files + multiple read_file calls)
+    max_iterations = 25  # Increased for complex pattern detection (division, None checks) and multi-code comparison tasks
     iteration = 0
     
     while iteration < max_iterations:
