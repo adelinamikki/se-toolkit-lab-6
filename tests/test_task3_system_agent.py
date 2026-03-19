@@ -243,7 +243,6 @@ def test_task3_read_file_for_docs():
         assert len(read_file_calls) > 0, f"Expected read_file tool call, got: {tool_calls}"
 
         print("✓ Test 1 PASSED: Agent correctly used read_file for framework question")
-        return True
 
     finally:
         os.chdir(original_cwd)
@@ -288,7 +287,6 @@ def test_task3_query_api_for_data():
         assert "/items/" in api_call.get("args", {}).get("path", ""), "Expected /items/ path"
 
         print("✓ Test 2 PASSED: Agent correctly used query_api for data question")
-        return True
 
     finally:
         os.chdir(original_cwd)
