@@ -35,32 +35,53 @@ class _StubLLMHandler(BaseHTTPRequestHandler):
 
         # Decide response based on user question
         if "merge conflict" in user_message.lower():
-            # Test 1: respond with tool calls
-            response = {
-                "id": "chatcmpl-test-1",
-                "object": "chat.completion",
-                "model": "qwen3-coder-plus",
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": "Let me search the wiki for merge conflict resolution.",
-                            "tool_calls": [
-                                {
-                                    "id": "call_1",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "list_files",
-                                        "arguments": '{"path": "wiki"}',
-                                    },
-                                }
-                            ],
-                        },
-                        "finish_reason": "tool_calls",
-                    }
-                ],
-            }
+            # Check if this is a follow-up (tool results already in conversation)
+            has_tool_results = any(m.get("role") == "tool" for m in messages)
+            
+            if has_tool_results:
+                # Follow-up: Return final answer with wiki reference
+                response = {
+                    "id": "chatcmpl-test-1b",
+                    "object": "chat.completion",
+                    "model": "qwen3-coder-plus",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "To resolve a merge conflict, you need to edit the conflicted files to remove conflict markers and keep the desired changes. The wiki/git.md file has detailed steps for resolving merge conflicts.",
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                }
+            else:
+                # Initial response: Make a read_file call to git.md
+                response = {
+                    "id": "chatcmpl-test-1",
+                    "object": "chat.completion",
+                    "model": "qwen3-coder-plus",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "Let me search the wiki for merge conflict resolution.",
+                                "tool_calls": [
+                                    {
+                                        "id": "call_1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "read_file",
+                                            "arguments": '{"path": "wiki/git.md"}',
+                                        },
+                                    }
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                }
         elif "what files" in user_message.lower() and "wiki" in user_message.lower():
             # Test 2: list_files response
             response = {
