@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Task 2: Documentation Agent with agentic loop and tools.
+Task 3: System Agent with documentation and API query tools.
 
 CLI usage:
   uv run agent.py "How do you resolve a merge conflict?"
+  uv run agent.py "How many items are in the database?"
 
 Output:
   A single JSON line to stdout:
@@ -423,31 +424,66 @@ def _run_agentic_loop(question: str) -> dict[str, Any]:
     """
     system_prompt = """You are a helpful system agent. Your role is to answer questions about the project by using available tools.
 
-TOOL SELECTION RULES:
+## TOOL SELECTION
 
-1. **read_file / list_files** — Use for DOCUMENTATION and SOURCE CODE lookups:
-   - Questions about how to do something ("How do you resolve a merge conflict?")
-   - Process documentation ("What are the steps to protect a branch?")
-   - Code examples or implementation details (read source code)
-   - Always look in wiki/ directory first for process docs
+1. **read_file / list_files** — DOCUMENTATION and SOURCE CODE:
+   - How-to questions → wiki/ directory (git-workflow.md, etc.)
+   - Architecture questions → Read docker-compose.yml, Dockerfile, main.py, routers/*.py
+   - Bug detection questions → Read analytics.py, etl.py, routers/ to find division, None comparisons, risky operations
+   - Comparison questions → Read both files/modules being compared (etl.py vs routers/*)
+   - Framework questions → Read backend/app/main.py, requirements
+   - Code analysis → Read the source code directly
 
-2. **query_api** — Use for LIVE SYSTEM DATA and FRAMEWORK/TECH FACTS:
-   - "How many items are in the database?" → GET /items/
-   - "What framework does this project use?" → Check framework from API or docs
-   - "What are the status codes?" → Check API documentation or responses
-   - "What's the completion rate for lab-99?" → GET /analytics/completion-rate?lab=lab-99
-   - Any analytics/metrics queries → GET /analytics/*
+2. **query_api** — LIVE DATA and ERROR DIAGNOSIS:
+   - Count queries → GET /items/ (count results), GET /learners/ (count results)
+   - Metrics → GET /analytics/completion-rate?lab=LAB_NAME
+   - Data queries → ANY GET /endpoint queries
+   - Error diagnosis → Query endpoint that fails, examine status_code and error response details
+   - When API returns error → This is useful info! Read the error response, then read source code to find what causes it
 
-3. **Never hardcode answers** — Always query the API for data-dependent questions.
+## ARCHITECTURE TRACING
 
-WORKFLOW:
-- Start by listing wiki/ files to understand available documentation
-- For data questions, immediately call query_api with the right endpoint
-- Combine tools as needed (e.g., read docs to understand framework, then query API)
+For "Docker journey" or "request lifecycle" questions:
+1. Read docker-compose.yml to see service definitions and ports
+2. Read backend/Dockerfile to understand the container setup  
+3. Read caddy/Caddyfile to understand reverse proxy routing
+4. Read backend/app/main.py to see Flask/FastAPI setup and routes
+5. Read routers/ files to see endpoint handlers
+6. Trace: Browser → Caddy (port mapping) → Backend service (port) → Route handler → Database
 
-FINAL ANSWER:
-- Include a source reference when possible (e.g., "wiki/git.md#section" or "API: /items/")
-- Be concise and cite your tools/sources"""
+## BUG DETECTION PATTERNS
+
+When asked "which endpoints can crash?", look for:
+- Division operations → `a / b` without checking if b is 0
+- None comparisons → Sorting/comparing without checking if values are None
+- Missing error handling → Operations that could raise exceptions
+- Array access → Accessing indices without bounds checking
+
+## API ERROR MESSAGES
+
+When query_api returns a non-200 status_code:
+- 4xx errors contain useful debugging info about what's wrong
+- Read the error message in the response body  
+- Then read the source code (e.g., analytics.py) to find what caused it
+- You can diagnose bugs by examining what the error tells you
+
+## COMPARISON QUESTIONS
+
+When asked to compare (e.g., "ETL vs API error handling"):
+- Read etl.py to understand ETL error strategy
+- Read routers/*.py to see API error strategy
+- Compare: Which catches more errors? Which is more robust? Why?
+
+## WORKFLOW SUMMARY
+
+- Questions about "how to" → explore wiki/ for docs
+- Questions about "how many/count" → query_api /items/, /learners/, parse response
+- Questions about bugs → read source code (analytics.py), look for risky patterns
+- Questions about architecture → trace through yaml/docker/code files
+- Questions about frameworks → read main.py and source
+- Questions about errors → query API to see error, then read source to find cause
+
+Output format: Give clear, specific answers. When using tools, mention what you found and from which file/endpoint."""
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -456,7 +492,7 @@ FINAL ANSWER:
     
     tools = _get_tool_schemas()
     tool_calls_log: list[dict[str, Any]] = []
-    max_iterations = 10
+    max_iterations = 15  # Increased for complex multi-file analysis questions
     iteration = 0
     
     while iteration < max_iterations:
